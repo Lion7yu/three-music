@@ -47,7 +47,9 @@
 <body>
   <div class="globeWrapper">
     <div class="title">Music Park</div>
-    <div id="audioContainer"></div>
+    <div id="audioContainer">
+      <audio></audio>
+    </div>
     <div class="videoPlayer">
       <div id="backward">
         <i class="fa fa-step-backward" aria-hidden="true"></i>
@@ -60,26 +62,100 @@
       </div>
     </div>
   </div>
-  <script>
+  <script type="module">
+    import * as THREE from './node_modules/three/build/three.module.js'
+    let scene, camera, renderer, analyser, uniforms;
     const playButton = document.querySelector('#playButton')
+    playButton.addEventListener('click', play)
     const playIcon = document.querySelector('.fa-play-circle')
     const audioContainer = document.querySelector('#audioContainer')
-    const audio = new Audio()
+    const audio = document.querySelector('audio')
     const node = document.createElement("source")
     node.src = './static/music/test.mp3'
     audio.appendChild(node)
-    audioContainer.appendChild(audio)
+
+    renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight / 2);
+    renderer.setClearColor(0x000000);
+    renderer.setPixelRatio(window.devicePixelRatio);
+    audioContainer.appendChild(renderer.domElement);
+
+    const fftSize = 512
+
+    scene = new THREE.Scene();
+
+    camera = new THREE.Camera();
+
     let playing = false
-    playButton.addEventListener('click', () => {
+
+    const wm = new WeakMap()
+
+    function play() {
+      const listener = new THREE.AudioListener();
+      const threeAudio = new THREE.Audio(listener);
+      const file = './test.mp3';
+      const fileName = file.replace(/(.*\/)*([^.]+).*/ig, "$2")
+
       playing = !playing
       if (playing) {
         playIcon.className = 'fa fa-pause-circle'
         audio.play()
+        threeAudio.setMediaElementSource(audio);
       } else {
         playIcon.className = 'fa fa-play-circle'
         audio.pause()
       }
-    })
+      analyser = new THREE.AudioAnalyser(threeAudio, fftSize);
+
+      const format = (renderer.capabilities.isWebGL2) ? THREE.RedFormat : THREE.LuminanceFormat;
+
+      uniforms = {
+
+        tAudioData: { value: new THREE.DataTexture(analyser.data, fftSize / 2, 1, format) }
+
+      };
+
+      const material = new THREE.ShaderMaterial({
+
+        uniforms: uniforms,
+        vertexShader: document.getElementById('vertexShader').textContent,
+        fragmentShader: document.getElementById('fragmentShader').textContent
+
+      });
+
+      const geometry = new THREE.PlaneGeometry(1, 1);
+
+      const mesh = new THREE.Mesh(geometry, material);
+      scene.add(mesh);
+
+
+      window.addEventListener('resize', onWindowResize);
+
+      animate();
+    }
+    function onWindowResize() {
+
+      renderer.setSize(window.innerWidth, window.innerHeight);
+
+    }
+
+    function animate() {
+
+      requestAnimationFrame(animate);
+
+      render();
+
+    }
+
+    function render() {
+
+      analyser.getFrequencyData();
+
+      uniforms.tAudioData.value.needsUpdate = true;
+
+      renderer.render(scene, camera);
+
+    }
   </script>
 </body>
 
