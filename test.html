@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Music Park</title>
+  <script src="https://use.fontawesome.com/b2d2f710b8.js"></script>
+  <link rel="stylesheet" href="style.css">
+  <script id="vertexShader" type="x-shader/x-vertex">
+
+    varying vec2 vUv;
+
+    void main() {
+
+      vUv = uv;
+
+      gl_Position = vec4( position, 1.0 );
+
+    }
+
+  </script>
+  <script id="fragmentShader" type="x-shader/x-fragment">
+
+    uniform sampler2D tAudioData;
+    varying vec2 vUv;
+
+    void main() {
+
+      vec3 backgroundColor = vec3( 0.125, 0.125, 0.125 );
+      vec3 color = vec3( 1.0, 1.0, 0.0 );
+
+      float f = texture2D( tAudioData, vec2( vUv.x, 0.0 ) ).r;
+
+      float i = step( vUv.y, f ) * step( f - 0.0125, vUv.y );
+
+      gl_FragColor = vec4( mix( backgroundColor, color, i ), 1.0 );
+
+    }
+
+  </script>
+</head>
+
+<body>
+  <div class="globeWrapper">
+    <div class="title">Music Park</div>
+    <div id="audioContainer">
+      <audio src="./static/music/test1.mp3"></audio>
+    </div>
+    <div class="videoPlayer">
+      <div id="backward">
+        <i class="fa fa-step-backward" aria-hidden="true"></i>
+      </div>
+      <div id="playButton">
+        <i class="fa fa-play-circle" aria-hidden="true"></i>
+      </div>
+      <div id="forward">
+        <i class="fa fa-step-forward" aria-hidden="true"></i>
+      </div>
+    </div>
+  </div>
+  <script type="module">
+    import * as THREE from './node_modules/three/build/three.module.js'
+
+    let scene, camera, renderer, analyser, uniforms;
+
+    const audioContainer = document.getElementById('audioContainer');
+    const audio2 = document.querySelector('audio');
+    renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight / 2);
+    renderer.setClearColor(0x000000);
+    renderer.setPixelRatio(window.devicePixelRatio);
+    audioContainer.appendChild(renderer.domElement);
+
+    scene = new THREE.Scene();
+
+    camera = new THREE.Camera();
+
+    const playButton = document.getElementById('playButton')
+    const playImage = document.querySelector('.fa-play-circle')
+    playButton.addEventListener('click', play)
+    let playing = false
+    const fftSize = 512
+    function play() {
+      playing = !playing
+      if (playing) {
+        playImage.className = 'fa fa-pause-circle'
+      } else {
+        // playImage.className = 'fa fa-play-circle'
+      }
+      const listener = new THREE.AudioListener();
+      const audio = new THREE.Audio(listener);
+      const file = './test.mp3';
+      const fileName = file.replace(/(.*\/)*([^.]+).*/ig, "$2")
+      // const musicName = document.querySelector('.musicName')
+      // musicName.innerHTML = fileName
+
+      if (/(iPad|iPhone|iPod)/g.test(navigator.userAgent)) {
+        const loader = new THREE.AudioLoader();
+        loader.load(file, function (buffer) {
+
+          audio.setBuffer(buffer);
+          audio.play();
+
+        });
+      } else {
+        if (playing) {
+          audio2.play();
+        } else {
+          audio2.pause()
+        }
+        audio.setMediaElementSource(audio2);
+
+      }
+      analyser = new THREE.AudioAnalyser(audio, fftSize);
+
+      const format = (renderer.capabilities.isWebGL2) ? THREE.RedFormat : THREE.LuminanceFormat;
+
+      uniforms = {
+
+        tAudioData: { value: new THREE.DataTexture(analyser.data, fftSize / 2, 1, format) }
+
+      };
+
+      const material = new THREE.ShaderMaterial({
+
+        uniforms: uniforms,
+        vertexShader: document.getElementById('vertexShader').textContent,
+        fragmentShader: document.getElementById('fragmentShader').textContent
+
+      });
+
+      const geometry = new THREE.PlaneGeometry(1, 1);
+
+      const mesh = new THREE.Mesh(geometry, material);
+      scene.add(mesh);
+
+
+      window.addEventListener('resize', onWindowResize);
+
+      animate();
+    }
+    function onWindowResize() {
+
+      renderer.setSize(window.innerWidth, window.innerHeight);
+
+    }
+
+    function animate() {
+
+      requestAnimationFrame(animate);
+
+      render();
+
+    }
+
+    function render() {
+
+      analyser.getFrequencyData();
+
+      uniforms.tAudioData.value.needsUpdate = true;
+
+      renderer.render(scene, camera);
+
+    }
+
+  </script>
+</body>
+
+</html>
